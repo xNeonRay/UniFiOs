@@ -1,0 +1,5 @@
+# Protect database directory from direct web access
+<FilesMatch "\.sqlite$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

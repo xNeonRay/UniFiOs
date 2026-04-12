@@ -1,0 +1,5 @@
+# Protect api/config.local.php from direct web access
+<Files "config.local.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
