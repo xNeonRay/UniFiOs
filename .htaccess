@@ -1,0 +1,22 @@
+Options -Indexes
+
+# API routing — all /api/* requests go to api/index.php
+RewriteEngine On
+
+# Serve existing files and directories directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Route /api/* to api/index.php
+RewriteRule ^api/(.*)$ api/index.php [QSA,L]
+
+# Route /portal/* to portal/index.php (captive portal)
+RewriteRule ^portal/?$ portal/index.php [QSA,L]
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

@@ -1,0 +1,27 @@
+# Configuration with secrets
+api/config.local.php
+
+# Database
+database/*.sqlite
+database/*.sqlite-shm
+database/*.sqlite-wal
+
+# UniFi cookie files
+/tmp/unifi_cookie_*.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PHP
+vendor/
+composer.lock
+
+# Node (if any build tools added later)
+node_modules/
