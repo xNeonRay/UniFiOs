@@ -158,7 +158,7 @@ voucherForm && voucherForm.addEventListener('submit', async e => {
             expiresInfo.textContent = 'Sesión válida hasta: ' + d.toLocaleString();
         }
 
-        continueBtn.href = CFG.redirectUrl || 'https://google.com';
+        continueBtn.href = CFG.redirectUrl || '/portal/';
         showStep('stepSuccess');
 
     } catch (err) {
@@ -186,7 +186,9 @@ const chatInput    = document.getElementById('chatInput');
 const chatSend     = document.getElementById('chatSend');
 const chatBadge    = document.getElementById('chatBadge');
 
-let chatSessionId = localStorage.getItem('chat_session_id') || null;
+// Chat session IDs stored in sessionStorage (cleared when tab closes)
+// to avoid leaking session tokens on shared devices.
+let chatSessionId = sessionStorage.getItem('chat_session_id') || null;
 let chatOpen      = false;
 
 // Open chat via footer/alt-action links
@@ -263,7 +265,7 @@ async function ensureSession() {
     const res = await apiPost('/chat/start', {});
     if (res.success && res.session_id) {
         chatSessionId = res.session_id;
-        localStorage.setItem('chat_session_id', chatSessionId);
+        sessionStorage.setItem('chat_session_id', chatSessionId);
     }
     return chatSessionId;
 }

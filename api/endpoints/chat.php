@@ -15,10 +15,8 @@ switch (true) {
     case ($method === 'POST' && $action === 'start'):
         $b          = body();
         $rawWebhook = $b['webhook_url'] ?? DEFAULT_WEBHOOK_URL;
-        // Validate webhook URL — must be a valid https URL to prevent SSRF
-        $webhookUrl = (filter_var($rawWebhook, FILTER_VALIDATE_URL) && preg_match('#^https://#i', $rawWebhook))
-            ? $rawWebhook
-            : '';
+        // Validate webhook URL — must be https and must not resolve to a private IP (SSRF)
+        $webhookUrl = validate_webhook_url($rawWebhook) ? $rawWebhook : '';
         $sessionId  = bin2hex(random_bytes(16));
 
         $db->prepare('
@@ -48,9 +46,7 @@ switch (true) {
         if (!$session) {
             // Auto-create session if it doesn't exist
             $rawWebhook = $b['webhook_url'] ?? DEFAULT_WEBHOOK_URL;
-            $webhookUrl = (filter_var($rawWebhook, FILTER_VALIDATE_URL) && preg_match('#^https://#i', $rawWebhook))
-                ? $rawWebhook
-                : '';
+            $webhookUrl = validate_webhook_url($rawWebhook) ? $rawWebhook : '';
             $db->prepare('
                 INSERT INTO chat_sessions (session_id, webhook_url, messages)
                 VALUES (?, ?, ?)
@@ -72,9 +68,9 @@ switch (true) {
 
         $botReply = null;
 
-        // Relay to webhook
+        // Relay to webhook — re-validate the stored URL before use
         $webhookUrl = $session['webhook_url'] ?? DEFAULT_WEBHOOK_URL;
-        if ($webhookUrl) {
+        if ($webhookUrl && validate_webhook_url($webhookUrl)) {
             $payload = json_encode([
                 'session_id' => $sessionId,
                 'message'    => $message,

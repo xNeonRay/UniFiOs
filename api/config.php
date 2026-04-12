@@ -28,9 +28,9 @@ define('DEFAULT_WEBHOOK_URL', getenv('CHATBOT_WEBHOOK_URL') ?: '');
 
 // ─── Captive Portal ──────────────────────────────────────────────────────────
 // Number of seconds to wait before verifying internet access after auth
-define('AUTH_VERIFY_DELAY', 8);
-// How many times to retry verification
-define('AUTH_VERIFY_RETRIES', 5);
+define('AUTH_VERIFY_DELAY', 4);
+// How many times to retry verification (4s × 3 = max ~12s server-side blocking)
+define('AUTH_VERIFY_RETRIES', 3);
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 define('ALLOWED_ORIGINS', ['*']);   // restrict in production

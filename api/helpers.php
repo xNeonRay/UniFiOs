@@ -119,6 +119,62 @@ function verify_internet_access(string $mac, string $site): array
     return ['authorized' => false, 'attempts' => $retries];
 }
 
+// ─── Webhook URL validation (SSRF protection) ─────────────────────────────────
+/**
+ * Validate that a webhook URL is safe to call:
+ *   - Must be a valid URL with https scheme
+ *   - Hostname must not resolve to a private/loopback IP range
+ *
+ * Private ranges blocked: 127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, ::1, fc00::/7
+ */
+function validate_webhook_url(string $url): bool
+{
+    if (!$url) {
+        return false;
+    }
+
+    // Must be a valid https URL
+    if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https://#i', $url)) {
+        return false;
+    }
+
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!$host) {
+        return false;
+    }
+
+    // Strip IPv6 brackets
+    $host = trim($host, '[]');
+
+    // Resolve hostname to IP(s); block if any resolve to a private range
+    $ips = @gethostbynamel($host);
+    if ($ips === false) {
+        // Could not resolve — treat as safe to allow offline-dev but log if needed
+        $ips = [$host];
+    }
+
+    $privatePatterns = [
+        '#^127\.#',                     // loopback
+        '#^10\.#',                      // RFC1918
+        '#^172\.(1[6-9]|2\d|3[01])\.#', // RFC1918
+        '#^192\.168\.#',                // RFC1918
+        '#^169\.254\.#',               // link-local
+        '#^::1$#',                     // IPv6 loopback
+        '#^fc#i',                      // IPv6 unique-local (fc00::/7)
+        '#^fd#i',                      // IPv6 unique-local (fd00::/8)
+    ];
+
+    foreach ($ips as $ip) {
+        foreach ($privatePatterns as $pattern) {
+            if (preg_match($pattern, $ip)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 // ─── Voucher helpers ──────────────────────────────────────────────────────────
 function generate_voucher_code(int $length = 10): string
 {

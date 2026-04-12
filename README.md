@@ -190,7 +190,7 @@ X-API-Key: <key>
 
 ## Panel de administración
 
-Accede a `/admin/` en tu navegador. Se te pedirá la API key la primera vez (se guarda en `localStorage`).
+Accede a `/admin/` en tu navegador. Se te pedirá la API key la primera vez (se guarda en `sessionStorage` — se borra al cerrar la pestaña).
 
 Funcionalidades:
 - **Dashboard** — estadísticas generales

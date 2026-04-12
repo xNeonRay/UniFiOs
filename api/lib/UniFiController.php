@@ -319,13 +319,14 @@ class UniFiController
         }
 
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        $response  = curl_exec($ch);
-        $httpCode  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $response   = curl_exec($ch);
+        $httpCode   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        $curlError  = $response === false ? curl_error($ch) : '';
         curl_close($ch);
 
         if ($response === false) {
-            throw new RuntimeException('cURL error: ' . curl_error($ch));
+            throw new RuntimeException('cURL error: ' . $curlError);
         }
 
         return [
