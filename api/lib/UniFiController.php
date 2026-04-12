@@ -87,20 +87,20 @@ class UniFiController
      *
      * @param string   $mac        Client MAC (e.g. "aa:bb:cc:dd:ee:ff")
      * @param int      $minutes    Session duration in minutes (0 = unlimited)
-     * @param int|null $upBps      Upload speed limit in bps (null = none)
-     * @param int|null $downBps    Download speed limit in bps (null = none)
+     * @param int|null $upKbps     Upload speed limit in kbps (null = none)
+     * @param int|null $downKbps   Download speed limit in kbps (null = none)
      * @param int|null $quotaMb    Traffic quota in MB (null = none)
      * @param string   $apMac      AP MAC address
      * @param string   $site       Site name (defaults to configured site)
      */
     public function authorizeClient(
         string $mac,
-        int    $minutes = 480,
-        ?int   $upBps   = null,
-        ?int   $downBps = null,
-        ?int   $quotaMb = null,
-        string $apMac   = '',
-        string $site    = ''
+        int    $minutes  = 480,
+        ?int   $upKbps   = null,
+        ?int   $downKbps = null,
+        ?int   $quotaMb  = null,
+        string $apMac    = '',
+        string $site     = ''
     ): array {
         $this->login();
         $site = $site ?: $this->defaultSite;
@@ -110,10 +110,10 @@ class UniFiController
             'mac'     => strtolower($mac),
             'minutes' => $minutes,
         ];
-        if ($apMac)   $payload['ap_mac'] = strtolower($apMac);
-        if ($upBps)   $payload['up']     = $upBps;
-        if ($downBps) $payload['down']   = $downBps;
-        if ($quotaMb) $payload['bytes']  = $quotaMb * 1024 * 1024;
+        if ($apMac)    $payload['ap_mac'] = strtolower($apMac);
+        if ($upKbps)   $payload['up']     = $upKbps;
+        if ($downKbps) $payload['down']   = $downKbps;
+        if ($quotaMb)  $payload['bytes']  = $quotaMb * 1024 * 1024;
 
         return $this->siteCmd($site, 'stamgr', $payload);
     }
@@ -251,8 +251,11 @@ class UniFiController
     public function listSites(): array
     {
         $this->login();
-        $url = $this->baseUrl . '/api/self/sites';
-        $res = $this->request('GET', $url);
+        // UniFiOs routes the Network Application API under /proxy/network/
+        $url = $this->isUniFiOs
+            ? $this->baseUrl . '/proxy/network/api/self/sites'
+            : $this->baseUrl . '/api/self/sites';
+        $res  = $this->request('GET', $url);
         $data = json_decode($res['body'], true);
         return $data['data'] ?? [];
     }
@@ -264,7 +267,8 @@ class UniFiController
         if ($this->isUniFiOs) {
             return $this->baseUrl . '/proxy/network/api/s/' . $site . '/' . $path;
         }
-        return $this->baseUrl . ':8443/api/s/' . $site . '/' . $path;
+        // Legacy Network Application — baseUrl already contains host:port
+        return $this->baseUrl . '/api/s/' . $site . '/' . $path;
     }
 
     private function siteCmd(string $site, string $manager, array $payload): array

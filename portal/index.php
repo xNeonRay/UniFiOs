@@ -21,9 +21,10 @@
  *   mac  = client MAC address (some versions)
  */
 
-$clientMac = htmlspecialchars($_GET['mac']  ?? $_GET['id']  ?? '', ENT_QUOTES, 'UTF-8');
-$apMac     = htmlspecialchars($_GET['ap']   ?? $_GET['id']  ?? '', ENT_QUOTES, 'UTF-8');
-$ssid      = htmlspecialchars($_GET['ssid'] ?? '',                 ENT_QUOTES, 'UTF-8');
+$rawMac    = $_GET['mac'] ?? '';    // used for API checks (raw, unsanitized for HTML)
+$clientMac = htmlspecialchars($rawMac,              ENT_QUOTES, 'UTF-8');
+$apMac     = htmlspecialchars($_GET['ap']  ?? $_GET['id'] ?? '', ENT_QUOTES, 'UTF-8');
+$ssid      = htmlspecialchars($_GET['ssid'] ?? '',              ENT_QUOTES, 'UTF-8');
 
 // Validate redirect URL to prevent open redirect — only allow http/https URLs
 $rawRedirect = $_GET['url'] ?? '';
@@ -33,6 +34,28 @@ $redirectUrl = (filter_var($rawRedirect, FILTER_VALIDATE_URL) && preg_match('#^h
 
 // Site can be injected via URL param (set in UniFi portal settings)
 $site = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['site'] ?? 'default');
+
+// ── Caso 1: device already authorized ────────────────────────────────────────
+// When an AP reboots it loses its authorization cache and redirects the device
+// to the portal even though it still has a valid session in the controller.
+// Check here and redirect immediately so the user never sees the portal form.
+if ($rawMac !== '') {
+    require_once __DIR__ . '/../api/config.php';
+    require_once __DIR__ . '/../api/lib/UniFiController.php';
+    try {
+        $ctrl = new UniFiController(
+            UNIFI_HOST, UNIFI_PORT, UNIFI_USER, UNIFI_PASS,
+            $site ?: UNIFI_SITE, UNIFI_VERSION, UNIFI_VERIFY_SSL
+        );
+        if ($ctrl->isAuthorized($rawMac, $site ?: UNIFI_SITE)) {
+            // Device is already authorized — send it straight to its destination.
+            header('Location: ' . $redirectUrl);
+            exit;
+        }
+    } catch (Throwable $e) {
+        // UniFi unreachable — fall through and show the portal normally.
+    }
+}
 ?>
 
 <div class="portal-wrapper">

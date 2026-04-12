@@ -58,7 +58,10 @@ function body(): array
 // ─── API key middleware ────────────────────────────────────────────────────────
 function require_api_key(): void
 {
-    $key = $_SERVER['HTTP_X_API_KEY'] ?? ($_GET['api_key'] ?? '');
+    // Accept the key only from the X-API-Key request header.
+    // Never read it from $_GET — query-string API keys appear in server logs,
+    // browser history, and Referer headers, which is a security risk.
+    $key = $_SERVER['HTTP_X_API_KEY'] ?? '';
     if ($key !== API_KEY) {
         json_err('Unauthorized – invalid or missing API key', 401);
     }
@@ -96,27 +99,23 @@ function validate_mac(string $mac): bool
 // ─── Internet connectivity check ──────────────────────────────────────────────
 /**
  * Verify that a MAC address has internet access by checking its guest status
- * in UniFi, with retries to handle AP sync delay.
+ * in UniFi immediately after authorization.
+ *
+ * A single attempt is made here; if the AP has not yet synced the authorization
+ * the client-side pollVerify() function will continue polling asynchronously,
+ * keeping this PHP worker free rather than blocking for multiple sleep() cycles.
  */
 function verify_internet_access(string $mac, string $site): array
 {
-    $retries = AUTH_VERIFY_RETRIES;
-    $delay   = AUTH_VERIFY_DELAY;
-
-    for ($i = 0; $i < $retries; $i++) {
-        if ($i > 0) {
-            sleep($delay);
+    try {
+        $ctrl = unifi($site);
+        if ($ctrl->isAuthorized($mac, $site)) {
+            return ['authorized' => true, 'attempt' => 1];
         }
-        try {
-            $ctrl = unifi($site);
-            if ($ctrl->isAuthorized($mac, $site)) {
-                return ['authorized' => true, 'attempt' => $i + 1];
-            }
-        } catch (Throwable $e) {
-            // ignore transient errors
-        }
+    } catch (Throwable $e) {
+        // ignore transient errors
     }
-    return ['authorized' => false, 'attempts' => $retries];
+    return ['authorized' => false, 'attempts' => 1];
 }
 
 // ─── Webhook URL validation (SSRF protection) ─────────────────────────────────

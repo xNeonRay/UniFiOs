@@ -8,9 +8,14 @@
  * whether it actually has internet access. Useful for the captive portal
  * to poll after authorization to avoid the "already authorized but no
  * internet" issue caused by AP sync delays.
+ *
+ * NOTE: The router in index.php moves non-numeric path segments to $action
+ * (since MAC addresses are never numeric). The MAC therefore arrives in
+ * $action, not $id.
  */
 
-$mac  = sanitize_mac($id ?? '');
+// MAC arrives in $action because index.php re-routes non-numeric $id → $action
+$mac  = sanitize_mac($action ?? '');
 $site = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['site'] ?? UNIFI_SITE);
 
 if (!validate_mac($mac)) {
