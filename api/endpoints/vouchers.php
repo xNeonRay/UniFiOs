@@ -66,9 +66,13 @@ switch (true) {
                     $count, $duration, $maxUses, $quotaMb, $upKbps, $downKbps, $note, $site
                 );
                 foreach ($unifiVouchers as $uv) {
+                    $rawCode = preg_replace('/[^A-Z0-9]/i', '', $uv['code'] ?? '');
+                    $formattedCode = strlen($rawCode) === 10
+                        ? strtoupper(substr($rawCode, 0, 5) . '-' . substr($rawCode, 5, 5))
+                        : null;
                     $unifiIds[] = [
                         'id'   => $uv['_id']  ?? null,
-                        'code' => isset($uv['code']) ? strtoupper(substr($uv['code'], 0, 5) . '-' . substr($uv['code'], 5)) : null,
+                        'code' => $formattedCode,
                     ];
                 }
             } catch (Throwable $e) {

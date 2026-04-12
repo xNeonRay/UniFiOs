@@ -14,6 +14,9 @@ class UniFiController
     private string $cookieFile;
     private bool   $loggedIn = false;
     private bool   $isUniFiOs;
+    // Self-signed certificates are common in UniFi home setups.
+    // Set $verifySsl = true in production when using a valid certificate.
+    private bool   $verifySsl;
 
     public function __construct(
         string $host,
@@ -21,13 +24,15 @@ class UniFiController
         string $username,
         string $password,
         string $defaultSite = 'default',
-        string $version     = '8'
+        string $version     = '8',
+        bool   $verifySsl   = false
     ) {
         $this->baseUrl     = rtrim($host, '/') . ':' . $port;
         $this->username    = $username;
         $this->password    = $password;
         $this->defaultSite = $defaultSite;
         $this->isUniFiOs   = ((int) $version >= 7);
+        $this->verifySsl   = $verifySsl;
         $this->cookieFile  = sys_get_temp_dir() . '/unifi_cookie_' . md5($host . $port . $username) . '.txt';
     }
 
@@ -287,8 +292,8 @@ class UniFiController
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => $this->verifySsl,
+            CURLOPT_SSL_VERIFYHOST => $this->verifySsl ? 2 : 0,
             CURLOPT_COOKIEJAR      => $this->cookieFile,
             CURLOPT_COOKIEFILE     => $this->cookieFile,
             CURLOPT_TIMEOUT        => 30,

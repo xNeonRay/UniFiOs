@@ -24,7 +24,12 @@
 $clientMac = htmlspecialchars($_GET['mac']  ?? $_GET['id']  ?? '', ENT_QUOTES, 'UTF-8');
 $apMac     = htmlspecialchars($_GET['ap']   ?? $_GET['id']  ?? '', ENT_QUOTES, 'UTF-8');
 $ssid      = htmlspecialchars($_GET['ssid'] ?? '',                 ENT_QUOTES, 'UTF-8');
-$redirectUrl = htmlspecialchars($_GET['url'] ?? 'https://google.com', ENT_QUOTES, 'UTF-8');
+
+// Validate redirect URL to prevent open redirect — only allow http/https URLs
+$rawRedirect = $_GET['url'] ?? '';
+$redirectUrl = (filter_var($rawRedirect, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $rawRedirect))
+    ? htmlspecialchars($rawRedirect, ENT_QUOTES, 'UTF-8')
+    : 'https://google.com';
 
 // Site can be injected via URL param (set in UniFi portal settings)
 $site = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['site'] ?? 'default');

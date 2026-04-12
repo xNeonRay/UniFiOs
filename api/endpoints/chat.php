@@ -14,7 +14,11 @@ switch (true) {
     // ── Start session ─────────────────────────────────────────────────────────
     case ($method === 'POST' && $action === 'start'):
         $b          = body();
-        $webhookUrl = filter_var($b['webhook_url'] ?? DEFAULT_WEBHOOK_URL, FILTER_SANITIZE_URL);
+        $rawWebhook = $b['webhook_url'] ?? DEFAULT_WEBHOOK_URL;
+        // Validate webhook URL — must be a valid https URL to prevent SSRF
+        $webhookUrl = (filter_var($rawWebhook, FILTER_VALIDATE_URL) && preg_match('#^https://#i', $rawWebhook))
+            ? $rawWebhook
+            : '';
         $sessionId  = bin2hex(random_bytes(16));
 
         $db->prepare('
@@ -43,7 +47,10 @@ switch (true) {
 
         if (!$session) {
             // Auto-create session if it doesn't exist
-            $webhookUrl = filter_var($b['webhook_url'] ?? DEFAULT_WEBHOOK_URL, FILTER_SANITIZE_URL);
+            $rawWebhook = $b['webhook_url'] ?? DEFAULT_WEBHOOK_URL;
+            $webhookUrl = (filter_var($rawWebhook, FILTER_VALIDATE_URL) && preg_match('#^https://#i', $rawWebhook))
+                ? $rawWebhook
+                : '';
             $db->prepare('
                 INSERT INTO chat_sessions (session_id, webhook_url, messages)
                 VALUES (?, ?, ?)

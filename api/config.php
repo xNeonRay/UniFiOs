@@ -12,6 +12,8 @@ define('UNIFI_USER',     getenv('UNIFI_USER')     ?: 'admin');
 define('UNIFI_PASS',     getenv('UNIFI_PASS')     ?: 'changeme');
 define('UNIFI_SITE',     getenv('UNIFI_SITE')     ?: 'default');
 define('UNIFI_VERSION',  getenv('UNIFI_VERSION')  ?: '8');   // 5 | 6 | 7 | 8
+// Set UNIFI_VERIFY_SSL=true when your controller uses a valid/trusted certificate
+define('UNIFI_VERIFY_SSL', filter_var(getenv('UNIFI_VERIFY_SSL') ?: false, FILTER_VALIDATE_BOOLEAN));
 
 // ─── Database ────────────────────────────────────────────────────────────────
 define('DB_PATH', __DIR__ . '/../database/portal.sqlite');

@@ -84,8 +84,8 @@ function animateProgress(targetPct, duration = 800) {
     });
 }
 
-// Poll for actual internet access
-async function pollVerify(mac, site, maxAttempts = 6, delayMs = 3000) {
+// Poll for actual internet access (client-side check after server confirms authorization)
+async function pollVerify(mac, site, maxAttempts = 3, delayMs = 4000) {
     for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, delayMs));
         try {
@@ -154,7 +154,7 @@ voucherForm && voucherForm.addEventListener('submit', async e => {
         }
 
         if (res.expires_at) {
-            const d = new Date(res.expires_at.replace(' ', 'T') + 'Z');
+            const d = new Date(res.expires_at.replace(' ', 'T'));
             expiresInfo.textContent = 'Sesión válida hasta: ' + d.toLocaleString();
         }
 

@@ -6,13 +6,25 @@
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE = '../api';
 
-let apiKey = localStorage.getItem('admin_api_key') || '';
+// API key stored in sessionStorage (cleared on tab/browser close)
+// Falls back to a prompt on each session for security
+let apiKey = sessionStorage.getItem('admin_api_key') || '';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const qs  = (sel, ctx = document) => ctx.querySelector(sel);
 const qsa = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 const show = el => el && el.classList.remove('hidden');
 const hide = el => el && el.classList.add('hidden');
+
+/** Escape HTML to prevent XSS when building table rows */
+function escHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 async function apiFetch(path, { method = 'GET', body } = {}) {
     const opts = {
@@ -64,7 +76,7 @@ document.getElementById('apiKeySubmit').addEventListener('click', () => {
     const val = document.getElementById('apiKeyInput').value.trim();
     if (!val) { toast('Ingresa tu API key', 'error'); return; }
     apiKey = val;
-    localStorage.setItem('admin_api_key', apiKey);
+    sessionStorage.setItem('admin_api_key', apiKey);
     hide(document.getElementById('apiKeyPrompt'));
     initAll();
 });
@@ -130,17 +142,21 @@ async function loadVouchers() {
 
     tbody.innerHTML = res.data.map(v => `
         <tr>
-            <td class="mono" style="cursor:pointer" title="Click para copiar" onclick="copyToClipboard('${v.code}')">
-                ${v.code} 📋
+            <td class="mono" style="cursor:pointer" title="Click para copiar"
+                data-copy="${escHtml(v.code)}">
+                ${escHtml(v.code)} 📋
             </td>
-            <td>${v.site_id || '—'}</td>
-            <td>${v.ssid || badge('Cualquiera', 'gray')}</td>
-            <td>${v.duration_minutes} min</td>
-            <td>${v.used_count} / ${v.max_uses}</td>
+            <td>${escHtml(v.site_id || '—')}</td>
+            <td>${v.ssid ? escHtml(v.ssid) : badge('Cualquiera', 'gray')}</td>
+            <td>${escHtml(v.duration_minutes)} min</td>
+            <td>${escHtml(v.used_count)} / ${escHtml(v.max_uses)}</td>
             <td>${v.is_active ? badge('Activo', 'green') : badge('Inactivo', 'red')}</td>
             <td>${fmtDate(v.created_at)}</td>
             <td>
-                <button class="btn btn-danger btn-sm" onclick="deleteVoucher(${v.id}, '${v.code}')">Eliminar</button>
+                <button class="btn btn-danger btn-sm"
+                        data-action="delete-voucher"
+                        data-id="${escHtml(v.id)}"
+                        data-code="${escHtml(v.code)}">Eliminar</button>
             </td>
         </tr>
     `).join('');
@@ -149,6 +165,21 @@ async function loadVouchers() {
 document.getElementById('refreshVouchers').addEventListener('click', loadVouchers);
 document.getElementById('v_filter_site').addEventListener('change', loadVouchers);
 document.getElementById('v_filter_active').addEventListener('change', loadVouchers);
+
+// Event delegation for voucher table actions
+document.getElementById('vouchersTbody').addEventListener('click', async e => {
+    const copyTarget = e.target.closest('[data-copy]');
+    if (copyTarget) { copyToClipboard(copyTarget.dataset.copy); return; }
+
+    const delBtn = e.target.closest('[data-action="delete-voucher"]');
+    if (delBtn) {
+        const { id, code } = delBtn.dataset;
+        if (!confirm(`¿Eliminar voucher ${code}?`)) return;
+        const r = await apiFetch('/vouchers/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (r.success) { toast('Voucher eliminado'); loadVouchers(); }
+        else           { toast(r.error || 'Error al eliminar', 'error'); }
+    }
+});
 
 // Create voucher
 document.getElementById('openCreateVoucher').addEventListener('click', () => {
@@ -198,12 +229,6 @@ document.getElementById('submitCreateVoucher').addEventListener('click', async (
     }
 });
 
-window.deleteVoucher = async function(id, code) {
-    if (!confirm(`¿Eliminar voucher ${code}?`)) return;
-    const r = await apiFetch('/vouchers/' + id, { method: 'DELETE' });
-    if (r.success) { toast('Voucher eliminado'); loadVouchers(); }
-    else           { toast(r.error || 'Error al eliminar', 'error'); }
-};
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 async function loadUsers() {
@@ -218,14 +243,17 @@ async function loadUsers() {
 
     tbody.innerHTML = res.data.map(u => `
         <tr>
-            <td>${u.id}</td>
-            <td>${u.name}</td>
-            <td>${u.email || '—'}</td>
-            <td>${u.phone || '—'}</td>
-            <td>${u.device_count ?? 0}</td>
+            <td>${escHtml(u.id)}</td>
+            <td>${escHtml(u.name)}</td>
+            <td>${escHtml(u.email || '—')}</td>
+            <td>${escHtml(u.phone || '—')}</td>
+            <td>${escHtml(u.device_count ?? 0)}</td>
             <td>${fmtDate(u.created_at)}</td>
             <td>
-                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${u.name}')">Eliminar</button>
+                <button class="btn btn-danger btn-sm"
+                        data-action="delete-user"
+                        data-id="${escHtml(u.id)}"
+                        data-name="${escHtml(u.name)}">Eliminar</button>
             </td>
         </tr>
     `).join('');
@@ -233,6 +261,18 @@ async function loadUsers() {
 
 document.getElementById('refreshUsers').addEventListener('click', loadUsers);
 document.getElementById('u_search').addEventListener('input', debounce(loadUsers, 400));
+
+// Event delegation for users table
+document.getElementById('usersTbody').addEventListener('click', async e => {
+    const delBtn = e.target.closest('[data-action="delete-user"]');
+    if (delBtn) {
+        const { id, name } = delBtn.dataset;
+        if (!confirm(`¿Eliminar usuario "${name}"?`)) return;
+        const r = await apiFetch('/users/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (r.success) { toast('Usuario eliminado'); loadUsers(); }
+        else           { toast(r.error || 'Error', 'error'); }
+    }
+});
 
 document.getElementById('openCreateUser').addEventListener('click', () => {
     document.getElementById('createUserForm').classList.toggle('hidden');
@@ -257,12 +297,6 @@ document.getElementById('submitCreateUser').addEventListener('click', async () =
     }
 });
 
-window.deleteUser = async function(id, name) {
-    if (!confirm(`¿Eliminar usuario "${name}"?`)) return;
-    const r = await apiFetch('/users/' + id, { method: 'DELETE' });
-    if (r.success) { toast('Usuario eliminado'); loadUsers(); }
-    else           { toast(r.error || 'Error', 'error'); }
-};
 
 // ─── Devices ──────────────────────────────────────────────────────────────────
 async function loadDevices() {
@@ -277,14 +311,15 @@ async function loadDevices() {
 
     tbody.innerHTML = res.data.map(d => `
         <tr>
-            <td class="mono">${d.mac_address}</td>
-            <td>${d.hostname || '—'}</td>
-            <td>${d.user_name || badge('Sin asignar', 'gray')}</td>
+            <td class="mono">${escHtml(d.mac_address)}</td>
+            <td>${escHtml(d.hostname || '—')}</td>
+            <td>${d.user_name ? escHtml(d.user_name) : badge('Sin asignar', 'gray')}</td>
             <td>${fmtDate(d.last_seen)}</td>
             <td>${fmtDate(d.created_at)}</td>
             <td>
                 <button class="btn btn-danger btn-sm"
-                        onclick="unauthorizeDevice('${d.mac_address}')">Desautorizar</button>
+                        data-action="unauthorize-device"
+                        data-mac="${escHtml(d.mac_address)}">Desautorizar</button>
             </td>
         </tr>
     `).join('');
@@ -293,12 +328,17 @@ async function loadDevices() {
 document.getElementById('refreshDevices').addEventListener('click', loadDevices);
 document.getElementById('d_search').addEventListener('input', debounce(loadDevices, 400));
 
-window.unauthorizeDevice = async function(mac) {
-    if (!confirm(`¿Desautorizar ${mac} de UniFi?`)) return;
-    const r = await apiFetch('/devices/unauthorize', { method: 'POST', body: { mac } });
-    if (r.success) { toast('Dispositivo desautorizado'); }
-    else           { toast(r.error || 'Error', 'error'); }
-};
+// Event delegation for devices table
+document.getElementById('devicesTbody').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action="unauthorize-device"]');
+    if (btn) {
+        const mac = btn.dataset.mac;
+        if (!confirm(`¿Desautorizar ${mac} de UniFi?`)) return;
+        const r = await apiFetch('/devices/unauthorize', { method: 'POST', body: { mac } });
+        if (r.success) { toast('Dispositivo desautorizado'); }
+        else           { toast(r.error || 'Error', 'error'); }
+    }
+});
 
 // ─── Usages ───────────────────────────────────────────────────────────────────
 async function loadUsages() {
@@ -315,9 +355,9 @@ async function loadUsages() {
     const rows = res.data.filter(v => v.redemption_count > 0).map(v => `
         <tr>
             <td class="mono">—</td>
-            <td class="mono">${v.code}</td>
-            <td>${v.ssid || '—'}</td>
-            <td>${v.site_id}</td>
+            <td class="mono">${escHtml(v.code)}</td>
+            <td>${escHtml(v.ssid || '—')}</td>
+            <td>${escHtml(v.site_id)}</td>
             <td>${fmtDate(v.created_at)}</td>
             <td>${v.expires_at ? fmtDate(v.expires_at) : '—'}</td>
         </tr>

@@ -73,7 +73,8 @@ function unifi(string $site = ''): UniFiController
         UNIFI_USER,
         UNIFI_PASS,
         $site ?: UNIFI_SITE,
-        UNIFI_VERSION
+        UNIFI_VERSION,
+        UNIFI_VERIFY_SSL
     );
 }
 
@@ -121,10 +122,11 @@ function verify_internet_access(string $mac, string $site): array
 // ─── Voucher helpers ──────────────────────────────────────────────────────────
 function generate_voucher_code(int $length = 10): string
 {
-    $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $code  = '';
+    $chars    = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $charsLen = strlen($chars);
+    $code     = '';
     for ($i = 0; $i < $length; $i++) {
-        $code .= $chars[random_int(0, strlen($chars) - 1)];
+        $code .= $chars[random_int(0, $charsLen - 1)];
     }
     // Format as XXXXX-XXXXX
     return substr($code, 0, 5) . '-' . substr($code, 5, 5);
