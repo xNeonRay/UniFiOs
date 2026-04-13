@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Cautivo — UniFi</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .logo { text-align: center; margin-bottom: 1.5rem; }
+    .logo svg { width: 56px; height: 56px; fill: #38bdf8; }
+
+    h1 { font-size: 1.4rem; font-weight: 700; text-align: center; margin-bottom: 0.3rem; }
+    .subtitle { text-align: center; font-size: 0.9rem; color: rgba(255,255,255,0.6); margin-bottom: 2rem; }
+
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: rgba(255,255,255,0.8); }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]::placeholder { text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.35); }
+    input[type="text"]:focus { border-color: #38bdf8; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 1.2rem;
+      padding: 0.85rem;
+      border-radius: 8px;
+      border: none;
+      background: #0ea5e9;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover:not(:disabled) { background: #0284c7; }
+    .btn:active:not(:disabled) { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .msg {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      text-align: center;
+      display: none;
+    }
+    .msg.error   { background: rgba(239,68,68,0.25); border: 1px solid rgba(239,68,68,0.4); }
+    .msg.success { background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.4); }
+    .msg.info    { background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); }
+
+    .spinner {
+      display: none;
+      margin: 0.5rem auto 0;
+      width: 28px; height: 28px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer { margin-top: 1.5rem; text-align: center; font-size: 0.75rem; color: rgba(255,255,255,0.35); }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <!-- Simple WiFi icon -->
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1.5 8.5a14.5 14.5 0 0 1 21 0M5 12.5a10 10 0 0 1 14 0M8.5 16.5a5.5 5.5 0 0 1 7 0M12 20.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+    </svg>
+  </div>
+
+  <h1>Acceso a Internet</h1>
+  <p class="subtitle">Ingresa tu voucher para conectarte</p>
+
+  <!-- Portal form -->
+  <div id="portal-form">
+    <label for="voucher">Código de voucher</label>
+    <input
+      type="text"
+      id="voucher"
+      name="voucher"
+      maxlength="20"
+      placeholder="XXXX-XXXX"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button class="btn" id="connect-btn" type="button">Conectar</button>
+  </div>
+
+  <div class="msg" id="msg-box"></div>
+  <div class="spinner" id="spinner"></div>
+
+  <p class="footer" id="footer-text">Powered by UniFi Portal</p>
+</div>
+
+<script>
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Read a URL query parameter by name. */
+  function qp(name) {
+    return new URLSearchParams(window.location.search).get(name) || '';
+  }
+
+  /**
+   * Validate a redirect URL.
+   * Only allows http:// and https:// URLs to prevent javascript: / data: XSS.
+   * Falls back to a safe default if the URL is invalid.
+   */
+  function safeRedirectUrl(raw, fallback) {
+    if (!raw) return fallback;
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        return raw;
+      }
+    } catch (_) { /* invalid URL */ }
+    return fallback;
+  }
+
+  function showMsg(text, type) {
+    const el = document.getElementById('msg-box');
+    el.textContent = text;
+    el.className = 'msg ' + type;
+    el.style.display = 'block';
+  }
+
+  function hideMsg() {
+    const el = document.getElementById('msg-box');
+    el.style.display = 'none';
+  }
+
+  function setLoading(on) {
+    document.getElementById('connect-btn').disabled = on;
+    document.getElementById('spinner').style.display = on ? 'block' : 'none';
+  }
+
+  // ── Connectivity polling ───────────────────────────────────────────────────
+
+  /**
+   * Poll /portal/status until the AP has let the device through,
+   * then navigate to finalDest.
+   *
+   * @param {number}   intervalMs
+   * @param {number}   maxRetries
+   * @param {Function} onSuccess  Callback invoked when connectivity is confirmed
+   */
+  async function pollConnectivity(intervalMs, maxRetries, onSuccess) {
+    showMsg('Validando conexión… por favor espera.', 'info');
+    setLoading(true);
+
+    let attempts = 0;
+
+    return new Promise((resolve) => {
+      const timer = setInterval(async () => {
+        attempts++;
+
+        let ok = false;
+        try {
+          // Primary: our own server (always in walled garden)
+          const r = await fetch('/portal/status', { cache: 'no-store' });
+          ok = r.ok;
+        } catch (_) { /* not yet */ }
+
+        if (ok) {
+          clearInterval(timer);
+          showMsg('¡Conectado! Redirigiendo…', 'success');
+          setTimeout(onSuccess, 1000);
+          resolve(true);
+          return;
+        }
+
+        if (attempts >= maxRetries) {
+          clearInterval(timer);
+          setLoading(false);
+          showMsg(
+            'La conexión tardó más de lo esperado. Intenta refrescar la página.',
+            'error'
+          );
+          resolve(false);
+        }
+      }, intervalMs);
+    });
+  }
+
+  // ── Main flow ──────────────────────────────────────────────────────────────
+
+  const clientMac   = qp('id')  || qp('mac') || '';
+  const apMac       = qp('ap')  || '';
+  // Validate the redirect URL immediately — only http/https URLs are allowed.
+  const redirectUrl = safeRedirectUrl(qp('url'), 'https://www.google.com');
+  const POLL_MS     = 2000;
+  const POLL_MAX    = 15;
+
+  document.getElementById('connect-btn').addEventListener('click', async () => {
+    hideMsg();
+    const code = document.getElementById('voucher').value.trim().toUpperCase();
+
+    if (!code) {
+      showMsg('Por favor ingresa un código de voucher.', 'error');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const body = { voucher_code: code, mac: clientMac, ap_mac: apMac, redirect_url: redirectUrl };
+      const resp = await fetch('/portal/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setLoading(false);
+        showMsg(data.error || 'Error al validar el voucher.', 'error');
+        return;
+      }
+
+      // Authorization sent — start connectivity polling.
+      // The destination is the pre-validated redirectUrl; we ignore data.redirect
+      // from the server response to keep navigation origin fully client-controlled.
+      await pollConnectivity(
+        data.poll_interval_ms || POLL_MS,
+        data.poll_max_retries  || POLL_MAX,
+        () => { window.location.href = redirectUrl; },
+      );
+
+    } catch (err) {
+      setLoading(false);
+      showMsg('Error de red. Verifica tu conexión e inténtalo de nuevo.', 'error');
+      console.error(err);
+    }
+  });
+
+  // Allow pressing Enter in the input
+  document.getElementById('voucher').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('connect-btn').click();
+  });
+</script>
+
+</body>
+</html>
