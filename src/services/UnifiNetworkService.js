@@ -124,7 +124,7 @@ class UnifiNetworkService {
    */
   async listNetworkDevices({ offset = 0, limit = 200 } = {}) {
     const res = await this._integrationClient.get('sites', {
-      params: { offset, limit },
+      params: { offset: Math.max(0, parseInt(offset, 10)), limit: Math.min(200, Math.max(1, parseInt(limit, 10))) },
     });
     return res.data;
   }
@@ -153,7 +153,7 @@ class UnifiNetworkService {
   async listLogicalSites(topSiteId, { offset = 0, limit = 200 } = {}) {
     const id = this._validateSiteId(topSiteId || config.unifi.topSiteId);
     const res = await this._integrationClient.get(`sites/${id}/devices`, {
-      params: { offset, limit },
+      params: { offset: Math.max(0, parseInt(offset, 10)), limit: Math.min(200, Math.max(1, parseInt(limit, 10))) },
     });
     return res.data;
   }
@@ -196,7 +196,7 @@ class UnifiNetworkService {
   async listClients(siteId, { offset = 0, limit = 200 } = {}) {
     const validId = this._validateSiteId(siteId);
     const res = await this._integrationClient.get(`sites/${validId}/clients`, {
-      params: { offset, limit },
+      params: { offset: Math.max(0, parseInt(offset, 10)), limit: Math.min(200, Math.max(1, parseInt(limit, 10))) },
     });
     return res.data?.data ?? [];
   }

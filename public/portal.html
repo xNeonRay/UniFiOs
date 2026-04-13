@@ -174,17 +174,14 @@
   // ── Connectivity polling ───────────────────────────────────────────────────
 
   /**
-   * Poll a lightweight endpoint until the device has real internet access.
+   * Poll /portal/status until the AP has let the device through,
+   * then navigate to finalDest.
    *
-   * Strategy:
-   *  1. Try to reach /portal/status on our own server (confirms AP let us through).
-   *  2. Try https://connectivitycheck.gstatic.com/generate_204 as a secondary probe.
-   *
-   * @param {string}   redirectUrl   Where to send the user when connectivity is confirmed
    * @param {number}   intervalMs
    * @param {number}   maxRetries
+   * @param {Function} onSuccess  Callback invoked when connectivity is confirmed
    */
-  async function pollConnectivity(redirectUrl, intervalMs, maxRetries) {
+  async function pollConnectivity(intervalMs, maxRetries, onSuccess) {
     showMsg('Validando conexión… por favor espera.', 'info');
     setLoading(true);
 
@@ -204,8 +201,7 @@
         if (ok) {
           clearInterval(timer);
           showMsg('¡Conectado! Redirigiendo…', 'success');
-          const dest = safeRedirectUrl(redirectUrl, 'https://www.google.com');
-          setTimeout(() => { window.location.href = dest; }, 1000);
+          setTimeout(onSuccess, 1000);
           resolve(true);
           return;
         }
@@ -225,8 +221,9 @@
 
   // ── Main flow ──────────────────────────────────────────────────────────────
 
-  const clientMac   = qp('id')   || qp('mac')  || '';
-  const apMac       = qp('ap')   || '';
+  const clientMac   = qp('id')  || qp('mac') || '';
+  const apMac       = qp('ap')  || '';
+  // Validate the redirect URL immediately — only http/https URLs are allowed.
   const redirectUrl = safeRedirectUrl(qp('url'), 'https://www.google.com');
   const POLL_MS     = 2000;
   const POLL_MAX    = 15;
@@ -258,11 +255,13 @@
         return;
       }
 
-      // Authorization sent — start connectivity polling
+      // Authorization sent — start connectivity polling.
+      // The destination is the pre-validated redirectUrl; we ignore data.redirect
+      // from the server response to keep navigation origin fully client-controlled.
       await pollConnectivity(
-        safeRedirectUrl(data.redirect || redirectUrl, 'https://www.google.com'),
         data.poll_interval_ms || POLL_MS,
         data.poll_max_retries  || POLL_MAX,
+        () => { window.location.href = redirectUrl; },
       );
 
     } catch (err) {
