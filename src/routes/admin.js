@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { body } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
 const adminAuth = require('../middleware/adminAuth');
@@ -10,6 +11,16 @@ const AdminController = require('../controllers/AdminController');
 
 // All admin routes require Bearer token
 router.use(adminAuth);
+
+// Admin-wide rate limiter (300 req / 10 min per IP)
+const adminLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+router.use(adminLimiter);
 
 // ─── Voucher CRUD ────────────────────────────────────────────────────────────
 
@@ -50,36 +61,41 @@ router.delete('/sessions/:mac', AdminController.revokeSession);
 // POST   /admin/sessions/cleanup   — expire stale DB sessions
 router.post('/sessions/cleanup', AdminController.cleanup);
 
-// ─── UniFi passthrough ────────────────────────────────────────────────────────
+// ─── UniFi passthrough — integration/v1 reads ────────────────────────────────
 
-// GET  /admin/unifi/sites                   — list sites on controller
-router.get('/unifi/sites', AdminController.listSites);
+// GET /admin/unifi/network-devices    — list APs/switches (topSiteId source)
+router.get('/unifi/network-devices', AdminController.listNetworkDevices);
 
-// GET  /admin/unifi/clients[?site=default]  — list connected clients
+// GET /admin/unifi/logical-sites      — list logical UniFi sites with UUID+internalReference
+router.get('/unifi/logical-sites', AdminController.listLogicalSites);
+
+// GET /admin/unifi/clients            — list connected clients (?siteId=uuid)
 router.get('/unifi/clients', AdminController.listClients);
 
-// GET  /admin/unifi/clients/:mac            — get stats for specific client
+// GET /admin/unifi/clients/:mac       — get stats for specific client (?siteId=uuid)
 router.get('/unifi/clients/:mac', AdminController.getClient);
 
-// POST /admin/unifi/authorize               — manually authorize a MAC
+// ─── UniFi passthrough — command API (stamgr) ─────────────────────────────────
+
+// POST /admin/unifi/authorize         — manually authorize a MAC
 router.post(
   '/unifi/authorize',
   [
     body('mac').isString().trim().notEmpty().withMessage('mac is required'),
-    body('site').optional().isString(),
+    body('site_ref').optional().isString(),
     body('minutes').optional({ nullable: true }).isInt({ min: 1 }),
   ],
   AdminController.authorize,
 );
 
-// POST /admin/unifi/unauthorize             — manually unauthorize a MAC
+// POST /admin/unifi/unauthorize       — manually unauthorize a MAC
 router.post(
   '/unifi/unauthorize',
   [body('mac').isString().trim().notEmpty().withMessage('mac is required')],
   AdminController.unauthorize,
 );
 
-// POST /admin/unifi/kick                    — kick (force re-association) a MAC
+// POST /admin/unifi/kick              — kick (force re-association) a MAC
 router.post(
   '/unifi/kick',
   [body('mac').isString().trim().notEmpty().withMessage('mac is required')],

@@ -8,18 +8,39 @@ module.exports = {
 
   unifi: {
     ip: process.env.UNIFI_IP || '192.168.1.1',
+    /** HTTPS port of the UniFi OS web UI (commonly 443 or 11443). */
+    controllerPort: parseInt(process.env.UNIFI_PORT || '443', 10),
     apiKey: process.env.UNIFI_API_KEY || '',
-    defaultSite: process.env.UNIFI_DEFAULT_SITE || 'default',
     ignoreSSL: process.env.UNIFI_IGNORE_SSL !== 'false',
+
     /**
-     * Parsed list of site names managed by this portal.
-     * A voucher redemption will authorize the MAC on every site in this list.
+     * Site UUIDs from integration/v1 API.
+     * GET /proxy/network/integration/v1/sites/{topSiteId}/devices → "id" field.
+     * Used for integration/v1 read endpoints.
      * @type {string[]}
      */
-    sites: (process.env.UNIFI_SITES || 'default')
+    siteIds: (process.env.UNIFI_SITE_IDS || '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+
+    /**
+     * Site internalReferences (slugs) matching siteIds order.
+     * Used for stamgr command endpoints:
+     *   POST /proxy/network/api/s/{internalReference}/cmd/stamgr
+     * @type {string[]}
+     */
+    siteRefs: (process.env.UNIFI_SITE_REFS || 'default')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+
+    /**
+     * Top-level site ID (from GET /proxy/network/integration/v1/sites).
+     * Required to call /integration/v1/sites/{topSiteId}/devices.
+     * Leave blank to auto-discover from the first result.
+     */
+    topSiteId: process.env.UNIFI_TOP_SITE_ID || '',
   },
 
   db: {

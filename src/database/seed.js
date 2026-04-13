@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 function seed() {
   const insertSite = db.prepare(`
-    INSERT OR IGNORE INTO sites (name, description) VALUES (?, ?)
+    INSERT OR IGNORE INTO sites (internal_reference, name) VALUES (?, ?)
   `);
 
   const insertVoucher = db.prepare(`
@@ -20,9 +20,10 @@ function seed() {
   `);
 
   db.transaction(() => {
-    // Default sites (edit to match your UniFi installation)
-    insertSite.run('default', 'Main site');
-    insertSite.run('site2',   'Secondary site');
+    // Default sites — update internal_reference to match your actual UniFi site slugs
+    insertSite.run('default', 'Default');
+    insertSite.run('9kjh0hv4', 'Uniprint');
+    insertSite.run('snay2t2o', 'AntiguaDY');
 
     // Sample single-use voucher — 1 day (1440 min), any MAC
     insertVoucher.run('DEMO-0001', 'Demo 1-day pass',     1, 1440,   null,           'seeder');

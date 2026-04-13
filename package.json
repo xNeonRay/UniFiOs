@@ -11,9 +11,10 @@
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "better-sqlite3": "^9.6.0",
+    "better-sqlite3": "^11.10.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.3.2",
     "express-validator": "^7.2.0",
     "https-proxy-agent": "^7.0.4",
     "morgan": "^1.10.0",

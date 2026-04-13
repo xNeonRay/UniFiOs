@@ -48,7 +48,7 @@ app.use((err, _req, res, _next) => {
 // ─── Start ─────────────────────────────────────────────────────────────────────
 app.listen(config.port, () => {
   console.log(`[UniFi Portal] Server running on port ${config.port} (${config.nodeEnv})`);
-  console.log(`[UniFi Portal] Controller: https://${config.unifi.ip} | Sites: ${config.unifi.sites.join(', ')}`);
+  console.log(`[UniFi Portal] Controller: https://${config.unifi.ip}:${config.unifi.controllerPort} | Site refs: ${config.unifi.siteRefs.join(', ')}`);
 });
 
 module.exports = app;

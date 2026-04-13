@@ -138,6 +138,22 @@
     return new URLSearchParams(window.location.search).get(name) || '';
   }
 
+  /**
+   * Validate a redirect URL.
+   * Only allows http:// and https:// URLs to prevent javascript: / data: XSS.
+   * Falls back to a safe default if the URL is invalid.
+   */
+  function safeRedirectUrl(raw, fallback) {
+    if (!raw) return fallback;
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        return raw;
+      }
+    } catch (_) { /* invalid URL */ }
+    return fallback;
+  }
+
   function showMsg(text, type) {
     const el = document.getElementById('msg-box');
     el.textContent = text;
@@ -188,7 +204,8 @@
         if (ok) {
           clearInterval(timer);
           showMsg('¡Conectado! Redirigiendo…', 'success');
-          setTimeout(() => { window.location.href = redirectUrl; }, 1000);
+          const dest = safeRedirectUrl(redirectUrl, 'https://www.google.com');
+          setTimeout(() => { window.location.href = dest; }, 1000);
           resolve(true);
           return;
         }
@@ -210,7 +227,7 @@
 
   const clientMac   = qp('id')   || qp('mac')  || '';
   const apMac       = qp('ap')   || '';
-  const redirectUrl = qp('url')  || 'https://www.google.com';
+  const redirectUrl = safeRedirectUrl(qp('url'), 'https://www.google.com');
   const POLL_MS     = 2000;
   const POLL_MAX    = 15;
 
@@ -243,7 +260,7 @@
 
       // Authorization sent — start connectivity polling
       await pollConnectivity(
-        data.redirect || redirectUrl,
+        safeRedirectUrl(data.redirect || redirectUrl, 'https://www.google.com'),
         data.poll_interval_ms || POLL_MS,
         data.poll_max_retries  || POLL_MAX,
       );

@@ -13,28 +13,34 @@ function migrate() {
     -- Sites table  (multi-site support)
     -- -------------------------------------------------------
     CREATE TABLE IF NOT EXISTS sites (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT    NOT NULL UNIQUE,   -- UniFi site slug, e.g. "default"
-      description TEXT,
-      created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      -- UUID from integration/v1 API  (e.g. "001df191-5339-306a-a370-2875d376b630")
+      site_uuid         TEXT    UNIQUE,
+      -- Slug used in command API path  (e.g. "default", "9kjh0hv4")
+      internal_reference TEXT   NOT NULL UNIQUE,
+      name              TEXT,
+      created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
 
     -- -------------------------------------------------------
     -- Active MAC sessions (source of truth for the AP cache fix)
     -- -------------------------------------------------------
     CREATE TABLE IF NOT EXISTS active_mac_sessions (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      mac_address  TEXT    NOT NULL,          -- client MAC (upper-case)
-      site_name    TEXT    NOT NULL,          -- UniFi site slug
-      voucher_code TEXT    REFERENCES vouchers(code) ON DELETE SET NULL,
-      start_time   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-      end_time     TEXT    NOT NULL,          -- ISO-8601, when authorization expires
-      status       TEXT    NOT NULL DEFAULT 'active'
-                            CHECK(status IN ('active','expired','revoked')),
-      ap_mac       TEXT,                      -- optional: MAC of the AP the client joined
-      reauth_count INTEGER NOT NULL DEFAULT 0,  -- how many times AP-cache bug was triggered
-      created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-      updated_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      mac_address       TEXT    NOT NULL,          -- client MAC (upper-case, colon-sep)
+      -- Site reference columns (at least one must be present)
+      site_ref          TEXT    NOT NULL,           -- internalReference slug
+      site_uuid         TEXT,                       -- UUID from integration/v1 (optional)
+      voucher_code      TEXT    REFERENCES vouchers(code) ON DELETE SET NULL,
+      start_time        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      end_time          TEXT    NOT NULL,           -- ISO-8601, when authorization expires
+      status            TEXT    NOT NULL DEFAULT 'active'
+                                  CHECK(status IN ('active','expired','revoked')),
+      ap_mac            TEXT,                       -- optional: MAC of the AP client joined
+      reauth_count      INTEGER NOT NULL DEFAULT 0, -- AP-cache bug reauth counter
+      created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_mac_sessions_mac

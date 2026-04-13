@@ -5,31 +5,36 @@ const db = require('../config/database');
 /**
  * MacSession model — thin wrapper around the active_mac_sessions table.
  *
- * This is the "source of truth" for client authorization state.
- * When an AP reboots and loses its iptables cache, we use this table to
- * silently re-authorize the client without showing the portal again.
+ * Column naming:
+ *  - site_ref   → internalReference slug (e.g. "default", "9kjh0hv4")
+ *                 used in command API path: /proxy/network/api/s/{site_ref}/cmd/stamgr
+ *  - site_uuid  → UUID from integration/v1 API (optional but stored when available)
+ *
+ * This is the "source of truth" for authorization state.
+ * When an AP reboots and loses its iptables cache, this table lets us silently
+ * re-authorize the client without showing the portal again.
  */
 const MacSession = {
   /**
    * Find the most recent *active* session for a MAC address.
    * A session is active when status = 'active' AND end_time > now().
    *
-   * @param {string} mac   Upper-case colon-separated MAC
-   * @param {string} [site] Optional site filter
+   * @param {string} mac          Upper-case colon-separated MAC
+   * @param {string} [siteRef]    internalReference slug filter (optional)
    * @returns {object|undefined}
    */
-  findActive(mac, site) {
+  findActive(mac, siteRef) {
     const normalized = mac.toUpperCase();
-    if (site) {
+    if (siteRef) {
       return db.prepare(`
         SELECT * FROM active_mac_sessions
         WHERE mac_address = ?
-          AND site_name   = ?
+          AND site_ref    = ?
           AND status      = 'active'
           AND end_time    > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         ORDER BY end_time DESC
         LIMIT 1
-      `).get(normalized, site);
+      `).get(normalized, siteRef);
     }
     return db.prepare(`
       SELECT * FROM active_mac_sessions
@@ -61,26 +66,26 @@ const MacSession = {
    *
    * @param {object} params
    * @param {string}  params.mac_address
-   * @param {string}  params.site_name
+   * @param {string}  params.site_ref      internalReference slug
    * @param {string}  params.end_time      ISO-8601 string
+   * @param {string}  [params.site_uuid]   UUID from integration/v1 (optional)
    * @param {string}  [params.voucher_code]
    * @param {string}  [params.ap_mac]
    * @returns {object}  The newly created row
    */
-  create({ mac_address, site_name, end_time, voucher_code = null, ap_mac = null }) {
+  create({ mac_address, site_ref, end_time, site_uuid = null, voucher_code = null, ap_mac = null }) {
     const normalized = mac_address.toUpperCase();
     const stmt = db.prepare(`
       INSERT INTO active_mac_sessions
-        (mac_address, site_name, end_time, voucher_code, ap_mac)
-      VALUES (?, ?, ?, ?, ?)
+        (mac_address, site_ref, end_time, site_uuid, voucher_code, ap_mac)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(normalized, site_name, end_time, voucher_code, ap_mac);
+    const result = stmt.run(normalized, site_ref, end_time, site_uuid, voucher_code, ap_mac);
     return db.prepare('SELECT * FROM active_mac_sessions WHERE id = ?').get(result.lastInsertRowid);
   },
 
   /**
-   * Increment the reauth_count and update updated_at for a session.
-   * Called every time an AP-cache bug triggers a silent re-auth.
+   * Increment reauth_count for a session (called on every AP-cache silent re-auth).
    * @param {number} id
    */
   recordReauth(id) {
@@ -109,17 +114,17 @@ const MacSession = {
   /**
    * Mark ALL active sessions for a MAC as expired.
    * @param {string} mac
-   * @param {string} [site]
+   * @param {string} [siteRef]  internalReference slug filter (optional)
    */
-  expireByMac(mac, site) {
+  expireByMac(mac, siteRef) {
     const normalized = mac.toUpperCase();
-    if (site) {
+    if (siteRef) {
       db.prepare(`
         UPDATE active_mac_sessions
         SET status     = 'expired',
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE mac_address = ? AND site_name = ? AND status = 'active'
-      `).run(normalized, site);
+        WHERE mac_address = ? AND site_ref = ? AND status = 'active'
+      `).run(normalized, siteRef);
     } else {
       db.prepare(`
         UPDATE active_mac_sessions

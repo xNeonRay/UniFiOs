@@ -65,12 +65,12 @@ const CaptivePortalController = {
       return res.status(400).json({ error: reason });
     }
 
-    // 2. Authorize on all configured UniFi sites
-    const sites = config.unifi.sites;
+    // 2. Authorize on all configured UniFi sites (by internalReference slug)
+    const siteRefs = config.unifi.siteRefs;
     const authResults = [];
 
-    for (const site of sites) {
-      const unifi = new UnifiNetworkService(site);
+    for (const siteRef of siteRefs) {
+      const unifi = new UnifiNetworkService(siteRef);
       try {
         await unifi.authorizeGuest(upperMac, {
           minutes: voucher.duration_minutes ?? undefined,
@@ -79,10 +79,10 @@ const CaptivePortalController = {
           quotaMb:  voucher.quota_mb  ?? undefined,
           apMac:    ap_mac            ?? undefined,
         });
-        authResults.push({ site, success: true });
+        authResults.push({ site: siteRef, success: true });
       } catch (err) {
-        console.error(`[CaptivePortal] authorizeGuest failed for site "${site}":`, err.message);
-        authResults.push({ site, success: false, error: err.message });
+        console.error(`[CaptivePortal] authorizeGuest failed for site ref "${siteRef}":`, err.message);
+        authResults.push({ site: siteRef, success: false, error: err.message });
       }
     }
 
@@ -96,23 +96,21 @@ const CaptivePortalController = {
     }
 
     // 3. Redeem voucher (increments use count, records history)
-    const { sessionEndTime } = Voucher.redeem(voucher_code, upperMac, sites[0], {
+    const { sessionEndTime } = Voucher.redeem(voucher_code, upperMac, siteRefs[0], {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'] || null,
     });
 
     // 4. Create session records for each successful site
     for (const result of authResults.filter((r) => r.success)) {
-      // Expire any previous active sessions for this MAC+site
       MacSession.expireByMac(upperMac, result.site);
 
-      // Determine end_time: use sessionEndTime or far future for unlimited
       const endTime = sessionEndTime
-        ?? new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(); // ~100 years
+        ?? new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
 
       MacSession.create({
         mac_address:  upperMac,
-        site_name:    result.site,
+        site_ref:     result.site,
         end_time:     endTime,
         voucher_code: voucher_code.toUpperCase(),
         ap_mac:       ap_mac || null,
